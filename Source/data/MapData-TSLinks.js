@@ -243,7 +243,7 @@ var canonnEd3d_tslinks = {
 
 	init: function () {
 		//Sites Data
- 		var sites = new Promise(function (resolve, reject) {
+ 		var p1 = new Promise(function (resolve, reject) {
 			canonnEd3d_tslinks.formatSites(sites, resolve);
 		});
         
@@ -252,7 +252,7 @@ var canonnEd3d_tslinks = {
 			canonnEd3d_tslinks.parseCSVData('data/csvCache/thargoid_links.csv', canonnEd3d_tslinks.formatLinks, resolve);
 		});
 
-		Promise.all([sites, links]).then(function () {
+		Promise.all([p1, links]).then(function () {
 			Ed3d.init({
 				container: 'edmap',
 				json: canonnEd3d_tslinks.systemsData,
