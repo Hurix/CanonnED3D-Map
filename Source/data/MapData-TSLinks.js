@@ -48,8 +48,19 @@ const reqSites = async (API_START, type) => {
 	return payload;
 };
 
+const reqSites = async (API_START, type) => {
+
+	let payload = await capi({
+		url: `/${type}?_limit=${API_LIMIT}&_start=${API_START}`,
+		method: 'get'
+	});
+
+	return payload;
+};
+
 var canonnEd3d_tslinks = {
-	//Define Categories
+    //Define Categories
+    sitesByIDs: {},
 	systemsData: {
 		categories: {
 			'Thargoid Structures - (TS)': {
@@ -113,116 +124,90 @@ var canonnEd3d_tslinks = {
         ]
 	},
 	startcoords: [],
-	formatSites: async function (data, resolvePromise) {
-		sites = await go(data);
+	formatSites: async function (data) {
+        /*
+        //not using the extensive json data as it seems to be older than the csv export from the gooogle sheet
+        //also if link target is not thargoid site, it will be "null" while the csv mentions the system name
 
-		let siteTypes = Object.keys(data);
+        sites = await go(data);
+        let siteTypes = Object.keys(data);
+        */
 
-		for (var i = 0; i < siteTypes.length; i++) {
-			for (var d = 0; d < sites[siteTypes[i]].length; d++) {
-				let siteData = sites[siteTypes[i]];
-				if (siteData[d].system.systemName && siteData[d].system.systemName.replace(' ', '').length > 1) {
-					var poiSite = {};
-					poiSite['name'] = siteData[d].system.systemName;
-
-					//Check Site Type and match categories
-					if (siteData[d].status.status == 'Active') {
-						poiSite['cat'] = [201];
-					} else {
-						poiSite['cat'] = [202];
-					}
-					poiSite['coords'] = {
-						x: parseFloat(siteData[d].system.edsmCoordX),
-						y: parseFloat(siteData[d].system.edsmCoordY),
-						z: parseFloat(siteData[d].system.edsmCoordZ),
-					};
-
-					// We can then push the site to the object that stores all systems
-					canonnEd3d_tslinks.systemsData.systems.push(poiSite);
-
-				}
-			}
-		}
-		document.getElementById("loading").style.display = "none";
-		resolvePromise();
-	},
-
-	formatLinks: function (data) {
-        
-        //adding sites to our list that are not thargoid sites but targeted by their links
-        //the loops should be like 3*260*260 iterations; but actually much less because many targets are thargoid sites
-        //i am sure this can be done much faster but icba right now
+        //create associative array with siteID as keys
 		for (var i = 0; i < data.length; i++) {
-			if (data[i].tar_name && data[i].tar_name.replace(' ', '').length > 1) {
-                found = false;
-                //search on our main systems storage that we add on, to prevent multiple additions of the same
-                for (var si = 0; si < canonnEd3d_tslinks.systemsData.systems.length; si++) {
-                    if (canonnEd3d_tslinks.systemsData.systems[si].name == data[i].tar_name) {
-                        found = true;
-                        break;
-                    }
+            if (data[i].system && data[i].system.replace(' ', '').length > 1) {
+                canonnEd3d_tslinks.sitesByIDs[data[i].siteID] = data[i];
+            }
+        }
+        
+        //run through list and add sites and links at once, requires associative array with siteID as keys
+        for (var i = 0; i < canonnEd3d_tslinks.sitesByIDs.length; i++) {
+            let siteData = canonnEd3d_tslinks.sitesByIDs[i];
+            //add the site
+            let poiSite = {};
+            poiSite['name'] = siteData.system.systemName;
+
+            //Check Site Type and match categories
+            if (siteData.status == '✔') {
+                poiSite['cat'] = [201];
+            } else {
+                poiSite['cat'] = [202];
+            }
+            poiSite['coords'] = {
+                x: parseFloat(siteData.system.edsmCoordX),
+                y: parseFloat(siteData.system.edsmCoordY),
+                z: parseFloat(siteData.system.edsmCoordZ),
+            };
+
+            // We can then push the site to the object that stores all systems
+            canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+
+            //add the route link
+            if (siteData['msg1'] && siteData['msg1'] != 'X' && siteData['msg1'].replace(' ', '').length > 1) {
+                //if its not a thargoid structure, we need to add the system, too
+                if ("TS" != siteData['msg1'].substr(0, 2)) {
+                    fetchAddSystem(siteData['msg1']);
                 }
-                if (found) continue;
-
-                //add target system if it hasn't been found
-                var poiSite = {};
-                poiSite['name'] = data[i].tar_name;
-                if (data[i].tar_infos) {
-                    poiSite['infos'] = data[i].tar_infos + '<br/><a href="https://www.edsm.net/en/system?systemName=' + data[i].tar_name + '">EDSM</a><br/><a href="https://tools.canonn.tech/Signals/?system=' + data[i].tar_name + '">Signals</a>';
-                } else {
-                    poiSite['infos'] = '<br/><a href="https://www.edsm.net/en/system?systemName=' + data[i].tar_name + '">EDSM</a><br/><a href="https://tools.canonn.tech/Signals/?system=' + data[i].tar_name + '">Signals</a>';
+                addRoute(siteData, canonnEd3d_tslinks.sitesByIDs[siteData['msg1']]);
+            }
+            if (siteData['msg2'] && siteData['msg2'] != 'X' && siteData['msg2'].replace(' ', '').length > 1) {
+                //if its not a thargoid structure, we need to add the system, too
+                if ("TS" != siteData['msg2'].substr(0, 2)) {
+                    fetchAddSystem(siteData['msg2']);
                 }
-
-                /*
-                //Check Site Type from csv
-
-                if (data[i].type == 'Bubble') {
-                    poiSite['cat'] = [201];
-                } else {
-                    poiSite['cat'] = [202];
+                addRoute(siteData, canonnEd3d_tslinks.sitesByIDs[siteData['msg2']]);
+            }
+            if (siteData['msg3'] && siteData['msg3'] != 'X' && siteData['msg3'].replace(' ', '').length > 1) {
+                //if its not a thargoid structure, we need to add the system, too
+                if ("TS" != siteData['msg3'].substr(0, 2)) {
+                    fetchAddSystem(siteData['msg3']);
                 }
-                */
-                poiSite['cat'] = [10];
-
-                poiSite['coords'] = {
-                    x: parseFloat(data[i].tar_x),
-                    y: parseFloat(data[i].tar_y),
-                    z: parseFloat(data[i].tar_z),
-                };
-
-                // We can then push the site to the object that stores all systems
-                canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+                addRoute(siteData, canonnEd3d_tslinks.sitesByIDs[siteData['msg3']]);
             }
         }
 
-        // adding the routes as 1:1 lines since I didnt see a way to have 1:m routes
-        //the CSV data will be one line for each link, so 2-3 lines per thargoid site
-		for (var i = 0; i < data.length; i++) {
-			if (data[i].name && data[i].name.replace(' ', '').length > 1) {
-                var route = {};
-                /* example route:
-                {
-                    cat: ["30"], 'points': [
+		document.getElementById("loading").style.display = "none";
+    },
     
-                        { 's': 'Origin HIP 33386', 'label': 'Origin HIP 33386' },
-                        { 's': 'Target1 HIP 39748', 'label': 'Target1 HIP 39748' },
-    
-                    ], 'circle': false
-                },*/
-				
-                route['cat'] = [20];
-                route['points'] = [
-                    { 's': data[i].name, 'label': data[i].name },
-                    { 's': data[i].tar_name, 'label': data[i].tar_name }
-                ];
-                route['circle'] = false;
+    fetchAddSystem: function(name) {
 
-				// We can then push the site to the object that stores all systems
-				canonnEd3d_tslinks.systemsData.routes.push(route);
-			}
-		}
-	},
-	
+    },
+
+    //data is one line of canonn thargoid structure CSV data export (or tssites api call)
+    addRoute: function(originSite, targetSite) {
+        var route = {};
+        //todo 
+        route['cat'] = [10];
+        route['points'] = [
+            { 's': originSite.system, 'label': originSite.system },
+            { 's': targetSite.system, 'label': targetSite.system },
+        ];
+        route['circle'] = false;
+
+        // We can then push the site to the object that stores all systems
+        canonnEd3d_tslinks.systemsData.routes.push(route);
+    },
+
 	parseCSVData: function (url, callBack, resolvePromise) {
 		Papa.parse(url, {
 			download: true,
@@ -242,17 +227,12 @@ var canonnEd3d_tslinks = {
 
 
 	init: function () {
-		//Sites Data
- 		var p1 = new Promise(function (resolve, reject) {
-			canonnEd3d_tslinks.formatSites(sites, resolve);
-		});
-        
         //Links Data
 		var links = new Promise(function (resolve, reject) {
-			canonnEd3d_tslinks.parseCSVData('data/csvCache/thargoid_links.csv', canonnEd3d_tslinks.formatLinks, resolve);
+			canonnEd3d_tslinks.parseCSVData('data/csvCache/202011052200_Canonn Universal Science DB - TS Export - Export CSV Data.csv', canonnEd3d_tslinks.formatSites, resolve);
 		});
 
-		Promise.all([p1, links]).then(function () {
+		Promise.all([links]).then(function () {
 			Ed3d.init({
 				container: 'edmap',
 				json: canonnEd3d_tslinks.systemsData,
