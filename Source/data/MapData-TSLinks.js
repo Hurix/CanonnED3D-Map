@@ -92,7 +92,7 @@ var canonnEd3d_tslinks = {
 					color: '800000',
 				}
 			},
-            'Thargoid Link Targets': {
+            'Thargoid Links Decoded': {
                 /*'10': {
                     name: 'Varati',
                     color: 'f5a142',
@@ -118,54 +118,43 @@ var canonnEd3d_tslinks = {
                     name: 'to be specified',
                     color: '666666',
                 },
+
+                //notes for later / unique stuff: 
+                //Outotz system was hand-placed in the cone sector gnosis event
+                //2-3 barnacle forests also hand placed (out of usual bio env. parameters)
+                //
             },
-		},
-        systems: [],
-        routes: [
-            /* example data of the intention
-            {
-                cat: ["30"], 'points': [
-
-                    { 's': 'Origin HIP 33386', 'label': 'Origin HIP 33386' },
-                    { 's': 'Target1 HIP 39748', 'label': 'Target1 HIP 39748' },
-
-                ], 'circle': false
-            },
-            {
-                cat: ["40"], 'points': [
-
-                    { 's': 'Origin HIP 33386', 'label': 'Origin HIP 33386' },
-                    { 's': 'Target2 HIP 61595', 'label': 'Target2 HIP 61595' },
-
-                ], 'circle': false
-            },
-            */
-        ]
+		}
+        , systems: []
+        , routes: []
 	},
 	startcoords: [],
-	formatSites: (data) => {
+	formatSites: async (data) => {
         /*
-        //not using the extensive json data as it seems to be older than the csv export from the gooogle sheet
+        //not using the extensive json data as it seems to be older than the csv export from the survey sheet
         //also if link target is not thargoid site, it will be "null" while the csv mentions the system name
+        //we need to assemble a full list that is used as csv as of now
 
         sites = await go(data);
         let siteTypes = Object.keys(data);
         */
 
-        //create associative array with siteID as keys
+        //create associative array with siteID as keys, as people use "TS123" to ID sites
+        //altho in theory there is only 1 site per system, there is NO guarantee that siteID:system are 1:1 - maybe even siteID:system_planet is not 1:1?
 		for (var i = 0; i < data.length; i++) {
             if (data[i].system && data[i].system.replace(' ', '').length > 1) {
                 canonnEd3d_tslinks.sitesByIDs[data[i].siteID] = data[i];
             }
         }
+
         //run through list and add sites and links at once, requires associative array with siteID as keys
-        Object.keys(canonnEd3d_tslinks.sitesByIDs).forEach(async function(key, index) {
-            let siteData = this[key];
+        for (const key of Object.keys(canonnEd3d_tslinks.sitesByIDs)) {
+            let siteData = canonnEd3d_tslinks.sitesByIDs[key];
             //add the site
             let poiSite = {};
             poiSite['name'] = siteData.system;
 
-            //Check Site Type and match categories
+            //thargoid sites have two states, active and inactive
             if (siteData.status == '✔') {
                 poiSite['cat'] = [201];
             } else {
@@ -180,50 +169,53 @@ var canonnEd3d_tslinks = {
             // We can then push the site to the object that stores all systems
             canonnEd3d_tslinks.systemsData.systems.push(poiSite);
             
-            canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg1);
-            canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg2);
-            canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg3);
+            // adding routes to build the connections and show the msg links
+            // arrows would be cool and reusable for hyperdictions map
+            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg1);
+            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg2);
+            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg3);
 
-        }, canonnEd3d_tslinks.sitesByIDs)
+        }
     },
     
-    addedSystems: {},
-    fetchAddSystem: (name) => {
-        if (canonnEd3d_tslinks.addedSystems[name]) return;
-        getSystemEDSM(name).then(function(response) {
-            for (var i = 0; i < response.data.length; i++) {
-                
-                let system = response.data[i];
-                //add the site
-                let poiSite = {};
-                poiSite['name'] = system.name;
+    addingSystems: {},
+    fetchAddSystem: async (name) => {
+        if (canonnEd3d_tslinks.addingSystems[name]) return;
+        canonnEd3d_tslinks.addingSystems[name] = {done: false};
 
-                //Check Site Type and match categories
-                poiSite['cat'] = [10];
-                poiSite['coords'] = {
-                    x: parseFloat(system.coords.x),
-                    y: parseFloat(system.coords.y),
-                    z: parseFloat(system.coords.z),
-                };
-                canonnEd3d_tslinks.systemsData.systems.push(poiSite);
-                canonnEd3d_tslinks.addedSystems[system.name] = true;
-            }
-        });
-        
+        let response = await getSystemEDSM(name);
+        console.log("EDSM debug", response);
+        for (var i = 0; i < response.data.length; i++) {
+            
+            let system = response.data[i];
+            //add the site
+            let poiSite = {};
+            poiSite['name'] = system.name;
+
+            //todo Check Site Type and match categories
+            poiSite['cat'] = [10];
+            poiSite['coords'] = {
+                x: parseFloat(system.coords.x),
+                y: parseFloat(system.coords.y),
+                z: parseFloat(system.coords.z),
+            };
+            canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+            canonnEd3d_tslinks.addingSystems[system.name].done = true;
+        }
     },
     
-    addRoute: (originSystem, msg) => {
+    addRoute: async (originSystem, msg) => {
 
         //add the route link
         if (msg && msg != 'X' && msg.replace(' ', '').length > 1) {
             let cat = [10];
             let tarname = msg;
             //if its not a thargoid structure, we need to add the system, too
-            if ("TS" == msg.substr(0, 2)) {
+            if (msg.match(/TS\d+/)) {
                 tarname = canonnEd3d_tslinks.sitesByIDs[msg].system;
                 cat = [40];
             } else {
-                canonnEd3d_tslinks.fetchAddSystem(msg);
+                await canonnEd3d_tslinks.fetchAddSystem(msg);
             }
 
             var route = {};
@@ -241,31 +233,31 @@ var canonnEd3d_tslinks = {
 
     },
 
-	parseCSVData: function (url, callBack, resolvePromise) {
-		Papa.parse(url, {
-			download: true,
-			header: true,
-			complete: function (results) {
-				callBack(results.data);
+	parseCSVData: async (url, callBack) => {
+        var parsePromise = new Promise(function (resolve, reject) {
+            Papa.parse(url, {
+                download: true,
+                header: true,
+                complete: resolve
+            });
+        });
+        var results = await parsePromise;
+        
+        await callBack(results.data);
 
-				// after we called the callback
-				// (which is synchronous, so we know it's safe here)
-				// we can resolve the promise
+        // after we called the callback
+        // (which is synchronous, so we know it's safe here)
+        // we can resolve the promise
 
-				document.getElementById("loading").style.display = "none";
-				resolvePromise();
-			},
-		});
+        document.getElementById("loading").style.display = "none";    
 	},
 
 
 	init: function () {
-        //Links Data
-		var links = new Promise(function (resolve, reject) {
-			canonnEd3d_tslinks.parseCSVData('data/csvCache/202011052200_Canonn Universal Science DB - TS Export - Export CSV Data.csv', canonnEd3d_tslinks.formatSites, resolve);
-		});
-
-		Promise.resolve(links).then(function () {
+        canonnEd3d_tslinks.parseCSVData(
+            'data/csvCache/202011052200_Canonn Universal Science DB - TS Export - Export CSV Data.csv',
+            canonnEd3d_tslinks.formatSites
+        ).then(function () {
 			Ed3d.init({
 				container: 'edmap',
 				json: canonnEd3d_tslinks.systemsData,
