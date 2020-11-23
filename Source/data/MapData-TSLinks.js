@@ -67,56 +67,59 @@ const reqSystemName = async (name) => {
 	return payload;
 };
 
-const getSystemEDSM = async (systemName) => {
-
+const getSystemsEDSM = async (systemNames) => {
+    if (Array.isArray(systemNames)) {
+        systemNames = "systemName[]="+systemNames.join("&systemName[]=");
+    } else {
+        systemNames = "systemName="+systemNames;
+    }
+    //console.log("EDSM Query: ", systemNames);
 	let payload = await edsmapi({
-		url: `/systems?systemName=${systemName}&showCoordinates=1`,
-		method: 'get'
+		url: `/systems?showCoordinates=1&${systemNames}`,
+        method: 'get'
 	});
 
 	return payload;
 };
+
 
 var canonnEd3d_tslinks = {
     //Define Categories
     sitesByIDs: {},
 	systemsData: {
 		categories: {
-			'Thargoid Structures - (TS)': {
+            'System Properties': {
+                '1000': {
+                    name: 'Populated System',
+                    color: '0000FF',
+                }
+            },
+			'Thargoid Structure Sites': {
 				'201': {
 					name: 'Active',
-					color: '008000',
+					color: '00FF00',
 				},
 				'202': {
 					name: 'Inactive',
-					color: '800000',
+					color: 'FF0000',
 				}
 			},
             'Thargoid Links Decoded': {
-                /*'10': {
-                    name: 'Varati',
-                    color: 'f5a142',
+                '10': {
+                    name: 'to be specified',
+                    color: '888888',
                 },
                 '20': {
-                    name: 'Waypoint',
-                    color: '42f557',
-                },*/
-
-                '30': {
-                    name: 'Bubble',
-                    color: 'FF6666',
+                    name: 'Populated System',
+                    color: '000080',
                 },
                 '40': {
-                    name: 'Thargoid Site',
-                    color: '003300',
+                    name: 'Thargoid Structure Site',
+                    color: '008000',
                 },
                 '60': {
                     name: 'Eagle Eye',
-                    color: '000033',
-                },
-                '10': {
-                    name: 'to be specified',
-                    color: '666666',
+                    color: '800000',
                 },
 
                 //notes for later / unique stuff: 
@@ -128,8 +131,82 @@ var canonnEd3d_tslinks = {
         , systems: []
         , routes: []
 	},
-	startcoords: [],
-	formatSites: async (data) => {
+    startcoords: [],
+    
+    parseFormResponses: async (data) => {
+        //run through csv format to acumulate Link System targets that are not TSsites.
+        for (const index of Object.keys(data)) {
+            let entry = data[index];
+            for (var i = 1; i < 4; i++) {
+                let msg = 'Link System '+i;
+                if (!entry[msg]) continue; //empty value
+                let msgIsTS = false;
+                for (const siteID of Object.keys(canonnEd3d_tslinks.sitesByIDs)) {
+                    let siteData = canonnEd3d_tslinks.sitesByIDs[siteID];
+                    if (siteData.system.toUpperCase() === entry[msg].toUpperCase()) {
+                        //console.log("recognized system to exist: ", siteData.system, "=>", entry[msg]);
+                        msgIsTS = true;
+                        break;
+                    }
+                }
+                if (!msgIsTS) {
+                    //console.log("Not TS Site in Line#" + index+1 + ": ", entry[msg]);
+                    let msgSystem = canonnEd3d_tslinks.cleanupMsg(entry[msg]);
+                    if (msgSystem) canonnEd3d_tslinks.addNonTSSRoute(entry.System, msgSystem);
+                }
+            }
+        }
+        
+        await canonnEd3d_tslinks.fetchAddSystems();
+    },
+
+    //invalid msg gives empty response
+    cleanupMsg: (msg) => {
+        let cleanedMsg = "";
+        /*
+        cleanup entries like:
+        * Links: Pleiades Sector LN-T c3-4 https://tool.canonn.tech/linkdecoder/?origin=HIP+16704&data=hlh+lhl+%3B+hll+lll+hlh%0D%0Ahhl+hhh+hll+%3B+lll+llh+lhh%0D%0Ahlh+hhh+lhl+lhl+%3B+hhl+lll+lhl+hhh
+        * Questionmark: Ceti Sector DL-X b1-6 (?) https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=lhl+lhl+hll+%3B+hhl+lll+lhl+hhh%0D%0Ahhl+lhh+hll+%3B+hll+hhl+hhh%0D%0Ahlh+hhl+lhl+%3B+hhl+lll+lhl
+        * Newlines: HIP 13806(?)
+https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=lll+hll+%3B+hll+hhl+hhh%0D%0Allh+hll+%3B+hhl+lll+hlh%0D%0Ahlh+hhl+llh+%3B+hhl+lll+lhl
+        * ???
+        * System names are systematically, right?: a-zA-Z0-9\-\s
+        * 
+        * from: https://bitbucket.org/Esvandiary/edts/src/3cb1ea78baa45d9a4687191ea6ac610f21996fba/edtslib/pgdata.py#lines-15
+        # This does not validate sector names, just ensures that it matches the 'Something AB-C d1' or 'Something AB-C d1-23' format
+        pg_system_regex_str = r"(?P<sector>[\w\s'.()/-]+) (?P<l1>[A-Za-z])(?P<l2>[A-Za-z])-(?P<l3>[A-Za-z]) (?P<mcode>[A-Za-z])(?:(?P<n1>\d+)-)?(?P<n2>\d+)"
+        *
+        * manual names can include ()?* - like Sagittarius A* which broke a lot of tool (eg. screenshot with system in filename)
+        */
+        let hasLinkIndex = msg.indexOf('http');
+        cleanedMsg = msg.substring(0, (hasLinkIndex > 0 ? hasLinkIndex-1 : msg.length));
+        let hasCommentIndex = msg.indexOf(' - ');
+        cleanedMsg = cleanedMsg.substring(0, (hasCommentIndex > 0 ? hasCommentIndex-1 : cleanedMsg.length));
+        let nothingIndex = msg.indexOf('do not intersect');
+        if (nothingIndex >= 0) return "";
+        cleanedMsg = cleanedMsg.replace('\(All 3 consistent with spreadsheet\)', '');
+        cleanedMsg = cleanedMsg.replace('\(Points to same site.\)', '');
+        cleanedMsg = cleanedMsg.replace('Result: ', '');
+        cleanedMsg = cleanedMsg.replace('Match is not proven transcript may be wrong', '');
+        cleanedMsg = cleanedMsg.replace('list index out of range', '');
+        cleanedMsg = cleanedMsg.replace('LINK POINTS IN SYSTEM', '');
+        cleanedMsg = cleanedMsg.replace('– Taylor Keep INRA base', '');
+        cleanedMsg = cleanedMsg.replace('13 Sep. 3304 (2018)', '');        
+        cleanedMsg = cleanedMsg.replace('\(\?\)', '');
+        cleanedMsg = cleanedMsg.replace('N/A', '');
+        cleanedMsg = cleanedMsg.replace('\n', '');
+        cleanedMsg = cleanedMsg.replace('\r', '');
+        cleanedMsg = cleanedMsg.replace('Non', '');
+        cleanedMsg = cleanedMsg.replace('probe', '');
+        cleanedMsg = cleanedMsg.replace('link', '');
+        cleanedMsg = cleanedMsg.replace('sensor', '');
+        cleanedMsg = cleanedMsg.replace('Only 2 Links', '');
+        cleanedMsg = cleanedMsg.trim();
+        //console.log("Cleaned Msg of Line#" + index+1 + ": '" + cleanedMsg + "'");
+        return cleanedMsg;
+    },
+
+	formatTSSites: async (data) => {
         /*
         //not using the extensive json data as it seems to be older than the csv export from the survey sheet
         //also if link target is not thargoid site, it will be "null" while the csv mentions the system name
@@ -141,96 +218,173 @@ var canonnEd3d_tslinks = {
 
         //create associative array with siteID as keys, as people use "TS123" to ID sites
         //altho in theory there is only 1 site per system, there is NO guarantee that siteID:system are 1:1 - maybe even siteID:system_planet is not 1:1?
-		for (var i = 0; i < data.length; i++) {
-            if (data[i].system && data[i].system.replace(' ', '').length > 1) {
-                canonnEd3d_tslinks.sitesByIDs[data[i].siteID] = data[i];
+		for (var d = 0; d < data.length; d++) {
+            if (data[d].system && data[d].system.replace(' ', '').length > 1) {
+                canonnEd3d_tslinks.sitesByIDs[data[d].siteID] = data[d];
             }
         }
 
         //run through list and add sites and links at once, requires associative array with siteID as keys
         for (const key of Object.keys(canonnEd3d_tslinks.sitesByIDs)) {
             let siteData = canonnEd3d_tslinks.sitesByIDs[key];
-            //add the site
-            let poiSite = {};
-            poiSite['name'] = siteData.system;
-
-            //thargoid sites have two states, active and inactive
-            if (siteData.status == '✔') {
-                poiSite['cat'] = [201];
-            } else {
-                poiSite['cat'] = [202];
-            }
-            poiSite['coords'] = {
-                x: parseFloat(siteData.galacticX),
-                y: parseFloat(siteData.galacticY),
-                z: parseFloat(siteData.galacticZ),
-            };
-
-            // We can then push the site to the object that stores all systems
-            canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+            
+            canonnEd3d_tslinks.addPOI(
+                siteData.system,
+                siteData.galacticX,
+                siteData.galacticY,
+                siteData.galacticZ,
+                siteData.status == '✔' ? [201] : [202] //thargoid sites have two states, active and inactive
+            );
             
             // adding routes to build the connections and show the msg links
             // arrows would be cool and reusable for hyperdictions map
-            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg1);
-            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg2);
-            await canonnEd3d_tslinks.addRoute(siteData.system, siteData.msg3);
+            canonnEd3d_tslinks.addTSRoute(siteData.system, siteData.msg1);
+            canonnEd3d_tslinks.addTSRoute(siteData.system, siteData.msg2);
+            canonnEd3d_tslinks.addTSRoute(siteData.system, siteData.msg3);
 
         }
     },
     
     addingSystems: {},
-    fetchAddSystem: async (name) => {
-        if (canonnEd3d_tslinks.addingSystems[name]) return;
-        canonnEd3d_tslinks.addingSystems[name] = {done: false};
+    systemsWithStations: [],
+    fetchAddSystems: async () => {
+        var edsmQueues = [];
+        var edsmQueue = [];
+        //console.log("Names:", names);
 
-        let response = await getSystemEDSM(name);
-        console.log("EDSM debug", response);
-        for (var i = 0; i < response.data.length; i++) {
-            
-            let system = response.data[i];
-            //add the site
-            let poiSite = {};
-            poiSite['name'] = system.name;
+        //check json_stations.json if the target site has a station (populated systems)
+        if (canonnEd3d_tslinks.systemsWithStations.length <= 0) {
+            //console.log("waiting for stations file");
+            canonnEd3d_tslinks.systemsWithStations = await fetch("data/json_stations.json");
+            canonnEd3d_tslinks.systemsWithStations = await canonnEd3d_tslinks.systemsWithStations.json();
+            //console.log("stations file received");
+        }
 
-            //todo Check Site Type and match categories
-            poiSite['cat'] = [10];
-            poiSite['coords'] = {
-                x: parseFloat(system.coords.x),
-                y: parseFloat(system.coords.y),
-                z: parseFloat(system.coords.z),
-            };
-            canonnEd3d_tslinks.systemsData.systems.push(poiSite);
-            canonnEd3d_tslinks.addingSystems[system.name].done = true;
+        console.log(canonnEd3d_tslinks.addingSystems);
+        for (const system in canonnEd3d_tslinks.addingSystems) {
+            let found = false;
+            for (var i = 0; i < canonnEd3d_tslinks.systemsWithStations.length; i++) {
+                let stationSystem = canonnEd3d_tslinks.systemsWithStations[i];
+                if (system.toUpperCase() === stationSystem.name.toUpperCase()) {
+                    //console.log(`found system '${system.name}' in stations file, adding as POI`);
+
+                    canonnEd3d_tslinks.addPOI(
+                        stationSystem.name,
+                        stationSystem.pos_x,
+                        stationSystem.pos_y,
+                        stationSystem.pos_z,
+                        [20,1000]
+                    );
+
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                //console.log("system has no station. adding to edsm queue");
+                edsmQueue.push(system);
+                if (edsmQueue.length > 70) {
+                    edsmQueues.push(edsmQueue);
+                    edsmQueue = [];
+                }
+            }
+        }
+        edsmQueues.push(edsmQueue);
+
+        //*
+        //console.log("Queue:", edsmQueue);
+        //console.log("Queues:", edsmQueues);
+        for (var q = 0; q < edsmQueues.length; q++) {
+            //console.log("Queue:", q, edsmQueues[q]);
+            let response = await getSystemsEDSM(edsmQueues[q]);
+            if (response.data.length <= 0) console.log("EDSM debug", response);
+            for (const index in response.data) {
+                let system = response.data[index];
+                if (!(system.name in canonnEd3d_tslinks.addingSystems)) continue;
+
+                canonnEd3d_tslinks.addPOI(
+                    system.name,
+                    system.coords.x,
+                    system.coords.y,
+                    system.coords.z,
+                    [10]
+                );
+            }
+        }
+        //*/
+       
+        let unknownNames = [];        
+        for (const names in canonnEd3d_tslinks.addingSystems) {
+            if (!canonnEd3d_tslinks.addingSystems[names].done)
+                unknownNames.push(names);
+        }
+        if (unknownNames.length > 0)
+            console.log("failed to fetch info for systems: ", unknownNames);
+    },
+
+    addPOI: (name, x, y, z, category) => {
+        //add the site
+        let poiSite = {};
+        poiSite['name'] = name;
+
+        //todo Check Site Type and match categories
+        poiSite['cat'] = category;
+        poiSite['coords'] = {
+            x: parseFloat(x),
+            y: parseFloat(y),
+            z: parseFloat(z),
+        };
+        canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+        if (name in canonnEd3d_tslinks.addingSystems) {
+            canonnEd3d_tslinks.addingSystems[name].done = true;
         }
     },
-    
-    addRoute: async (originSystem, msg) => {
+
+    addTSRoute: (originSystem, msg) => {
 
         //add the route link
         if (msg && msg != 'X' && msg.replace(' ', '').length > 1) {
-            let cat = [10];
+            let cat = [40];
             let tarname = msg;
             //if its not a thargoid structure, we need to add the system, too
-            if (msg.match(/TS\d+/)) {
-                tarname = canonnEd3d_tslinks.sitesByIDs[msg].system;
-                cat = [40];
-            } else {
-                await canonnEd3d_tslinks.fetchAddSystem(msg);
+            if (!msg.match(/TS\d+/)) {
+                canonnEd3d_tslinks.addNonTSSRoute(originSystem, msg);
+                return;
             }
 
-            var route = {};
-            //todo 
-            route['cat'] = cat;
-            route['points'] = [
-                { 's': originSystem, 'label': originSystem },
-                { 's': tarname, 'label': tarname },
-            ];
-            route['circle'] = false;
-
-            // We can then push the site to the object that stores all systems
-            canonnEd3d_tslinks.systemsData.routes.push(route);
+            tarname = canonnEd3d_tslinks.sitesByIDs[msg].system;
+            canonnEd3d_tslinks.addRoute(originSystem, tarname, cat);
         }
 
+    },
+    addNonTSSRoute: (originSystem, msg) => {
+        if (!msg || !originSystem) {
+            console.log(`Error trying to add Non TSS Route: ${originSystem} => ${msg}`);
+            return;
+        } 
+        
+        //add to system fetching queue, checking for stations and calling edsm later
+        if (!(msg in canonnEd3d_tslinks.addingSystems)) {
+            canonnEd3d_tslinks.addingSystems[msg] = {done: false};
+        }
+            
+
+        //console.log("adding Non TSS Route:", msg);
+
+        canonnEd3d_tslinks.addRoute(originSystem, msg, [20]);
+    },
+    addRoute: (originSystem, tarname, category) => {
+        var route = {};
+        //todo 
+        route['cat'] = category;
+        route['points'] = [
+            { 's': originSystem, 'label': originSystem },
+            { 's': tarname, 'label': tarname },
+        ];
+        route['circle'] = false;
+
+        // We can then push the site to the object that stores all systems
+        canonnEd3d_tslinks.systemsData.routes.push(route);
     },
 
 	parseCSVData: async (url, callBack) => {
@@ -254,10 +408,17 @@ var canonnEd3d_tslinks = {
 
 
 	init: function () {
-        canonnEd3d_tslinks.parseCSVData(
+        var tssites = canonnEd3d_tslinks.parseCSVData(
             'data/csvCache/202011052200_Canonn Universal Science DB - TS Export - Export CSV Data.csv',
-            canonnEd3d_tslinks.formatSites
-        ).then(function () {
+            canonnEd3d_tslinks.formatTSSites
+        );
+
+        var nonsiteTargets = canonnEd3d_tslinks.parseCSVData(
+            'data/csvCache/Thargoid Surface Site Survey (Responses) - Form responses 1.csv',
+            canonnEd3d_tslinks.parseFormResponses
+        );
+
+        Promise.all([tssites, nonsiteTargets]).then(function () {
 			Ed3d.init({
 				container: 'edmap',
 				json: canonnEd3d_tslinks.systemsData,
