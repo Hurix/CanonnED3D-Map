@@ -88,27 +88,29 @@ var canonnEd3d_tslinks = {
     sitesByIDs: {},
 	systemsData: {
 		categories: {
-            'System Properties': {
-                '1000': {
-                    name: 'to be specified',
-                    color: '888888',
-                },
-                '2000': {
-                    name: 'Populated System',
-                    color: '0000FF',
-                }
-            },
-			'Thargoid Structure Sites': {
+			'Site Properties': {
+				'200': {
+					name: 'to be specified',
+					color: '333333',
+				},
 				'201': {
-					name: 'Active',
+					name: 'Active T-Structure',
 					color: '00FF00',
 				},
 				'202': {
-					name: 'Inactive',
+					name: 'Inactive T-Structure',
 					color: 'FF0000',
-				}
+				},
+                '203': {
+                    name: 'Populated System',
+                    color: '0000FF',
+                },
+                '206': {
+                    name: 'Eagle Eye',
+                    color: 'FFFF00',
+                },
 			},
-            'Thargoid Links Decoded': {
+            'Thargoid Links Decoded (Line)': {
                 '10': {
                     name: 'to be specified',
                     color: '888888',
@@ -123,7 +125,7 @@ var canonnEd3d_tslinks = {
                 },
                 '60': {
                     name: 'Eagle Eye',
-                    color: '800000',
+                    color: 'FFFF00',
                 },
 
                 //notes for later / unique stuff: 
@@ -131,7 +133,7 @@ var canonnEd3d_tslinks = {
                 //2-3 barnacle forests also hand placed (out of usual bio env. parameters)
                 //
             },
-            'Leviathan Category': {
+            'Leviathan Category (Point)': {
                 '001': {
                     name: 'No Leviathans',
                     color: '333333',
@@ -153,7 +155,7 @@ var canonnEd3d_tslinks = {
                     color: '888888',
                 }   
             },
-            'Leviathan Count': {
+            'Leviathan Count (Point)': {
                 '0': {
                     name: '0',
                     color: '000000',
@@ -220,7 +222,7 @@ var canonnEd3d_tslinks = {
                     canonnEd3d_tslinks.systemsData.systems[key].cat.push('111'); //mix/unspecified for everything else
                 }
                 levCount = parseInt(levCount);
-                if (0<=levCount && levCount <= 8) {
+                if (0 <= levCount && levCount <= 8) {
                     canonnEd3d_tslinks.systemsData.systems[key].cat.push(levCount);
                 }
     
@@ -343,7 +345,14 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         }
     },
     
-    addingSystems: {},
+    addingSystems: {//adding Eagle Eye manually
+        "HIP 17225": {done: false, type: "EagleEye"},
+        "HIP 17692": {done: false, type: "EagleEye"},
+        "HIP 17892": {done: false, type: "EagleEye"},
+        "HR 1185": {done: false, type: "EagleEye"},
+        "Pleiades Sector IR-W d1-55": {done: false, type: "EagleEye"},
+        "Pleiades Sector KC-V c2-4": {done: false, type: "EagleEye"},
+    },
     systemsWithStations: [],
     fetchAddSystems: async () => {
         var edsmQueues = [];
@@ -361,18 +370,22 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //console.log(canonnEd3d_tslinks.addingSystems);
         for (const systemName in canonnEd3d_tslinks.addingSystems) {
             //if (canonnEd3d_tslinks.addingSystems[systemName].done) continue;
+
             var found = false;
             for (var i = 0; i < canonnEd3d_tslinks.systemsWithStations.length; i++) {
                 let stationSystem = canonnEd3d_tslinks.systemsWithStations[i];
                 if (systemName.toUpperCase() === stationSystem.name.toUpperCase()) {
                     //console.log(`found system '${system.name}' in stations file, adding as POI`);
-
+                    let cats = ['203']
+                    if (canonnEd3d_tslinks.addingSystems[systemName].type == "EagleEye")
+                        cats.push('206');
+                        
                     canonnEd3d_tslinks.addPOI(
                         stationSystem.name,
                         stationSystem.pos_x,
                         stationSystem.pos_y,
                         stationSystem.pos_z,
-                        ['2000']
+                        cats
                     );
 
                     found = true;
@@ -403,13 +416,17 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             }
             for (const index in response.data) {
                 let system = response.data[index];
-
+                let cats = [];
                 //*
                 //EDSM sometimes gives guessed results based on weird input
                 //since our input is very weird, i want the response to match what I search
                 let found = false;
                 for (const addSystemName in canonnEd3d_tslinks.addingSystems) {
                     if (system.name.toUpperCase() === addSystemName.toUpperCase()) {
+                        
+                        if (canonnEd3d_tslinks.addingSystems[addSystemName].type == "EagleEye")
+                            cats.push('206');
+
                         found = true;
                         break;
                     }
@@ -422,7 +439,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                     system.coords.x,
                     system.coords.y,
                     system.coords.z,
-                    ['1000']
+                    (cats.length > 0) ? cats : ['200']
                 );
             }
         }
@@ -439,6 +456,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
 
     addPOI: (name, x, y, z, category) => {
         /* not sure if we want to add multiples of the same system in different color or add multiple categories to the same system
+        //todo has issues on some systems, doing systems double works better. maybe bc of the route algo
         //adding the category only if the system already exists in our data
         for (const key in canonnEd3d_tslinks.systemsData.systems) {
             if (name.toUpperCase() === canonnEd3d_tslinks.systemsData.systems[key].name.toUpperCase()) {
@@ -495,6 +513,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //add to system fetching queue, checking for stations and calling edsm later
         if (!(msg in canonnEd3d_tslinks.addingSystems)) {
             canonnEd3d_tslinks.addingSystems[msg] = {done: false};
+            if (canonnEd3d_tslinks.addingSystems[msg].type == "EagleEye") cat.push('60');
         }
             
 
