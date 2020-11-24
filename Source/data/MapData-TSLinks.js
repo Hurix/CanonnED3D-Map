@@ -158,7 +158,7 @@ var canonnEd3d_tslinks = {
             'Leviathan Count (Point)': {
                 '0': {
                     name: '0',
-                    color: '000000',
+                    color: '333333',
                 },
                 '1': {
                     name: '1',
@@ -200,35 +200,63 @@ var canonnEd3d_tslinks = {
     startcoords: [],
     leviathanSystems: [],
     addLeviathans: (systemName, levType, levCount) => {
+        if (!systemName) return;
         if (canonnEd3d_tslinks.leviathanSystems.indexOf(systemName) != -1) return;
 
-        for (var key in canonnEd3d_tslinks.systemsData.systems) {
-            let system = canonnEd3d_tslinks.systemsData.systems[key];
-            if (system.name.toUpperCase() === systemName.toUpperCase()) {
-                //console.log(canonnEd3d_tslinks.systemsData.systems[key], systemName);
-                if (levType.toUpperCase() === "No Leviathans".toUpperCase()) {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('001');
-                }
-                else if (levType.toUpperCase() === "Small Reposing Leviathans".toUpperCase()) {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('011');
-                }
-                else if (levType.toUpperCase() === "Large upright leviathans".toUpperCase()) {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('101');
-                }
-                else if (levType.toUpperCase() === "Large upright leviathans, Small Reposing Leviathans".toUpperCase()) {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('110');
-                }
-                else {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('111'); //mix/unspecified for everything else
-                }
-                levCount = parseInt(levCount);
-                if (0 <= levCount && levCount <= 8) {
-                    canonnEd3d_tslinks.systemsData.systems[key].cat.push(levCount);
-                }
-    
-                canonnEd3d_tslinks.leviathanSystems.push(systemName);
+        var system = {};
+        let found = false;
+        for (const key in canonnEd3d_tslinks.systemsData.systems) {
+            if (systemName.toUpperCase() === canonnEd3d_tslinks.systemsData.systems[key].name.toUpperCase()) {
+                system = canonnEd3d_tslinks.systemsData.systems[key];
+                found = true;
+                break;
             }
         }
+
+        if (!found) {
+            console.log(systemName);
+            return;
+        }
+        
+        let cat = [];
+        //console.log(canonnEd3d_tslinks.systemsData.systems[key], systemName);
+        if (levType.toUpperCase() === "No Leviathans".toUpperCase()) {
+            cat.push('001');
+        }
+        else if (levType.toUpperCase() === "Small Reposing Leviathans".toUpperCase()) {
+            cat.push('011');
+        }
+        else if (levType.toUpperCase() === "Large upright leviathans".toUpperCase()) {
+            cat.push('101');
+        }
+        else if (levType.toUpperCase() === "Large upright leviathans, Small Reposing Leviathans".toUpperCase()) {
+            cat.push('110');
+        }
+        else {
+            cat.push('111'); //mix/unspecified for everything else
+        }
+        canonnEd3d_tslinks.addPOI(
+            system.name,
+            system.coords.x,
+            system.coords.y,
+            system.coords.z,
+            cat
+        );
+
+                
+        levCount = parseInt(levCount);
+        if (0 <= levCount && levCount <= 8) {
+            cat = [levCount];
+        }
+        canonnEd3d_tslinks.addPOI(
+            system.name,
+            system.coords.x,
+            system.coords.y,
+            system.coords.z,
+            cat
+        );
+    
+        canonnEd3d_tslinks.leviathanSystems.push(systemName);
     },
     parseFormResponses: async (data) => {
         //run through csv format to acumulate Link System targets that are not TSsites.
@@ -376,18 +404,22 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                 let stationSystem = canonnEd3d_tslinks.systemsWithStations[i];
                 if (systemName.toUpperCase() === stationSystem.name.toUpperCase()) {
                     //console.log(`found system '${system.name}' in stations file, adding as POI`);
-                    let cats = ['203']
-                    if (canonnEd3d_tslinks.addingSystems[systemName].type == "EagleEye")
-                        cats.push('206');
-                        
                     canonnEd3d_tslinks.addPOI(
                         stationSystem.name,
                         stationSystem.pos_x,
                         stationSystem.pos_y,
                         stationSystem.pos_z,
-                        cats
+                        ['203']
                     );
-
+                    if (canonnEd3d_tslinks.addingSystems[systemName].type == "EagleEye") {
+                        canonnEd3d_tslinks.addPOI(
+                            stationSystem.name,
+                            stationSystem.pos_x,
+                            stationSystem.pos_y,
+                            stationSystem.pos_z,
+                            ['206']
+                        );
+                    }
                     found = true;
                     break;
                 }
@@ -416,17 +448,21 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             }
             for (const index in response.data) {
                 let system = response.data[index];
-                let cats = [];
                 //*
                 //EDSM sometimes gives guessed results based on weird input
                 //since our input is very weird, i want the response to match what I search
                 let found = false;
                 for (const addSystemName in canonnEd3d_tslinks.addingSystems) {
                     if (system.name.toUpperCase() === addSystemName.toUpperCase()) {
-                        
-                        if (canonnEd3d_tslinks.addingSystems[addSystemName].type == "EagleEye")
-                            cats.push('206');
-
+                        if (canonnEd3d_tslinks.addingSystems[addSystemName].type == "EagleEye") {
+                            canonnEd3d_tslinks.addPOI(
+                                system.name,
+                                system.coords.x,
+                                system.coords.y,
+                                system.coords.z,
+                                ['206']
+                            );
+                        }
                         found = true;
                         break;
                     }
@@ -439,7 +475,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                     system.coords.x,
                     system.coords.y,
                     system.coords.z,
-                    (cats.length > 0) ? cats : ['200']
+                    ['200']
                 );
             }
         }
@@ -473,7 +509,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //add the site
         let poiSite = {};
         poiSite['name'] = name;
-
+        //console.log(category);
         //todo Check Site Type and match categories
         poiSite['cat'] = category;
         poiSite['coords'] = {
