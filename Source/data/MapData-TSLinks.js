@@ -90,6 +90,10 @@ var canonnEd3d_tslinks = {
 		categories: {
             'System Properties': {
                 '1000': {
+                    name: 'to be specified',
+                    color: '888888',
+                },
+                '2000': {
                     name: 'Populated System',
                     color: '0000FF',
                 }
@@ -111,7 +115,7 @@ var canonnEd3d_tslinks = {
                 },
                 '20': {
                     name: 'Populated System',
-                    color: '000080',
+                    color: '0000FF',
                 },
                 '40': {
                     name: 'Thargoid Structure Site',
@@ -127,16 +131,110 @@ var canonnEd3d_tslinks = {
                 //2-3 barnacle forests also hand placed (out of usual bio env. parameters)
                 //
             },
+            'Leviathan Category': {
+                '001': {
+                    name: 'No Leviathans',
+                    color: '333333',
+                },
+                '011': {
+                    name: 'Small Reposing Leviathans',
+                    color: '000088',
+                },
+                '110': {
+                    name: 'Large upright leviathans',
+                    color: '008800',
+                },
+                '110': {
+                    name: 'Large upright leviathans, Small Reposing Leviathans',
+                    color: '008888',
+                },
+                '111': {
+                    name: 'unspecified',
+                    color: '888888',
+                }   
+            },
+            'Leviathan Count': {
+                '0': {
+                    name: '0',
+                    color: '000000',
+                },
+                '1': {
+                    name: '1',
+                    color: '0000FF',
+                },
+                '2': {
+                    name: '2',
+                    color: '00FF00',
+                },
+                '3': {
+                    name: '3',
+                    color: '00FFFF',
+                },
+                '4': {
+                    name: '4',
+                    color: 'FF0000',
+                },
+                '5': {
+                    name: '5',
+                    color: 'FF00FF',
+                },
+                '6': {
+                    name: '6',
+                    color: 'FFFF00',
+                },
+                '7': {
+                    name: '7',
+                    color: '888888',
+                },
+                '8': {
+                    name: '8',
+                    color: 'FFFFFF',
+                }  
+            }
 		}
         , systems: []
         , routes: []
 	},
     startcoords: [],
+    leviathanSystems: [],
+    addLeviathans: (systemName, levType, levCount) => {
+        if (canonnEd3d_tslinks.leviathanSystems.indexOf(systemName) != -1) return;
+
+        for (var key in canonnEd3d_tslinks.systemsData.systems) {
+            let system = canonnEd3d_tslinks.systemsData.systems[key];
+            if (system.name.toUpperCase() === systemName.toUpperCase()) {
+                //console.log(canonnEd3d_tslinks.systemsData.systems[key], systemName);
+                if (levType.toUpperCase() === "No Leviathans".toUpperCase()) {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('001');
+                }
+                else if (levType.toUpperCase() === "Small Reposing Leviathans".toUpperCase()) {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('011');
+                }
+                else if (levType.toUpperCase() === "Large upright leviathans".toUpperCase()) {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('101');
+                }
+                else if (levType.toUpperCase() === "Large upright leviathans, Small Reposing Leviathans".toUpperCase()) {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('110');
+                }
+                else {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push('111'); //mix/unspecified for everything else
+                }
+                levCount = parseInt(levCount);
+                if (0<=levCount && levCount <= 8) {
+                    canonnEd3d_tslinks.systemsData.systems[key].cat.push(levCount);
+                }
     
+                canonnEd3d_tslinks.leviathanSystems.push(systemName);
+            }
+        }
+    },
     parseFormResponses: async (data) => {
         //run through csv format to acumulate Link System targets that are not TSsites.
         for (const index of Object.keys(data)) {
             let entry = data[index];
+
+            canonnEd3d_tslinks.addLeviathans(entry['System'], entry['Leviathans'], entry['Leviathan Count']);
+
             for (var i = 1; i < 4; i++) {
                 let msg = 'Link System '+i;
                 if (!entry[msg]) continue; //empty value
@@ -152,7 +250,7 @@ var canonnEd3d_tslinks = {
                 if (!msgIsTS) {
                     //console.log("Not TS Site in Line#" + index+1 + ": ", entry[msg]);
                     let msgSystem = canonnEd3d_tslinks.cleanupMsg(entry[msg]);
-                    if (msgSystem) canonnEd3d_tslinks.addNonTSSRoute(entry.System, msgSystem);
+                    if (msgSystem) canonnEd3d_tslinks.addNonTSSRoute(entry.System, msgSystem, ['20']);
                 }
             }
         }
@@ -233,7 +331,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                 siteData.galacticX,
                 siteData.galacticY,
                 siteData.galacticZ,
-                siteData.status == '✔' ? [201] : [202] //thargoid sites have two states, active and inactive
+                siteData.status == '✔' ? ['201'] : ['202'] //thargoid sites have two states, active and inactive
             );
             
             // adding routes to build the connections and show the msg links
@@ -260,12 +358,13 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             //console.log("stations file received");
         }
 
-        console.log(canonnEd3d_tslinks.addingSystems);
-        for (const system in canonnEd3d_tslinks.addingSystems) {
-            let found = false;
+        //console.log(canonnEd3d_tslinks.addingSystems);
+        for (const systemName in canonnEd3d_tslinks.addingSystems) {
+            //if (canonnEd3d_tslinks.addingSystems[systemName].done) continue;
+            var found = false;
             for (var i = 0; i < canonnEd3d_tslinks.systemsWithStations.length; i++) {
                 let stationSystem = canonnEd3d_tslinks.systemsWithStations[i];
-                if (system.toUpperCase() === stationSystem.name.toUpperCase()) {
+                if (systemName.toUpperCase() === stationSystem.name.toUpperCase()) {
                     //console.log(`found system '${system.name}' in stations file, adding as POI`);
 
                     canonnEd3d_tslinks.addPOI(
@@ -273,7 +372,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                         stationSystem.pos_x,
                         stationSystem.pos_y,
                         stationSystem.pos_z,
-                        [20,1000]
+                        ['2000']
                     );
 
                     found = true;
@@ -282,7 +381,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             }
             if (!found) {
                 //console.log("system has no station. adding to edsm queue");
-                edsmQueue.push(system);
+                edsmQueue.push(systemName);
                 if (edsmQueue.length > 70) {
                     edsmQueues.push(edsmQueue);
                     edsmQueue = [];
@@ -297,7 +396,11 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         for (var q = 0; q < edsmQueues.length; q++) {
             //console.log("Queue:", q, edsmQueues[q]);
             let response = await getSystemsEDSM(edsmQueues[q]);
-            if (response.data.length <= 0) console.log("EDSM debug", response);
+            
+            if (response.data.length <= 0)
+            {
+                console.log("EDSM debug", response);
+            }
             for (const index in response.data) {
                 let system = response.data[index];
                 if (!(system.name in canonnEd3d_tslinks.addingSystems)) continue;
@@ -307,7 +410,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
                     system.coords.x,
                     system.coords.y,
                     system.coords.z,
-                    [10]
+                    ['1000']
                 );
             }
         }
@@ -323,6 +426,16 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
     },
 
     addPOI: (name, x, y, z, category) => {
+        //adding the category only if the system already exists in our data
+        for (const key in canonnEd3d_tslinks.systemsData.systems) {
+            if (name.toUpperCase() === canonnEd3d_tslinks.systemsData.systems[key].name.toUpperCase()) {
+                canonnEd3d_tslinks.systemsData.systems[key].cat.push(category);
+                if (name in canonnEd3d_tslinks.addingSystems) {
+                    canonnEd3d_tslinks.addingSystems[name].done = true;
+                }
+                return;
+            }
+        }
         //add the site
         let poiSite = {};
         poiSite['name'] = name;
@@ -348,7 +461,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             let tarname = msg;
             //if its not a thargoid structure, we need to add the system, too
             if (!msg.match(/TS\d+/)) {
-                canonnEd3d_tslinks.addNonTSSRoute(originSystem, msg);
+                canonnEd3d_tslinks.addNonTSSRoute(originSystem, msg, ['10']);
                 return;
             }
 
@@ -357,7 +470,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         }
 
     },
-    addNonTSSRoute: (originSystem, msg) => {
+    addNonTSSRoute: (originSystem, msg, cat) => {
         if (!msg || !originSystem) {
             console.log(`Error trying to add Non TSS Route: ${originSystem} => ${msg}`);
             return;
@@ -371,7 +484,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
 
         //console.log("adding Non TSS Route:", msg);
 
-        canonnEd3d_tslinks.addRoute(originSystem, msg, [20]);
+        canonnEd3d_tslinks.addRoute(originSystem, msg, cat);
     },
     addRoute: (originSystem, tarname, category) => {
         var route = {};
