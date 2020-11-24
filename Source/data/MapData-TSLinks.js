@@ -403,7 +403,19 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             }
             for (const index in response.data) {
                 let system = response.data[index];
-                if (!(system.name in canonnEd3d_tslinks.addingSystems)) continue;
+
+                //*
+                //EDSM sometimes gives guessed results based on weird input
+                //since our input is very weird, i want the response to match what I search
+                let found = false;
+                for (const addSystemName in canonnEd3d_tslinks.addingSystems) {
+                    if (system.name.toUpperCase() === addSystemName.toUpperCase()) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) continue; //if its not matched anything of what we searched, ignore it
+                //*/
 
                 canonnEd3d_tslinks.addPOI(
                     system.name,
@@ -426,16 +438,20 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
     },
 
     addPOI: (name, x, y, z, category) => {
+        /* not sure if we want to add multiples of the same system in different color or add multiple categories to the same system
         //adding the category only if the system already exists in our data
         for (const key in canonnEd3d_tslinks.systemsData.systems) {
             if (name.toUpperCase() === canonnEd3d_tslinks.systemsData.systems[key].name.toUpperCase()) {
+                //console.log(`adding cat ${category} to system ${name}`);
                 canonnEd3d_tslinks.systemsData.systems[key].cat.push(category);
                 if (name in canonnEd3d_tslinks.addingSystems) {
+                    //console.log(`setting system ${name} as DONE`);
                     canonnEd3d_tslinks.addingSystems[name].done = true;
                 }
                 return;
             }
         }
+        //*/
         //add the site
         let poiSite = {};
         poiSite['name'] = name;
