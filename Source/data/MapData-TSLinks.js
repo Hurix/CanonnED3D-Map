@@ -112,10 +112,10 @@ var canonnEd3d_tslinks = {
                     name: 'Thargoid Structure Site',
                     color: '008000',
                 },
-                '60': {
+                /* '60': {
                     name: 'Eagle Eye',
                     color: 'FFFF00',
-                },
+                }, */
 
                 //notes for later / unique stuff: 
                 //Outotz system was hand-placed in the cone sector gnosis event
@@ -366,7 +366,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //run through list and add sites and links at once, requires associative array with siteID as keys
         for (const key of Object.keys(canonnEd3d_tslinks.sitesByIDs)) {
             let siteData = canonnEd3d_tslinks.sitesByIDs[key];
-            
+
             canonnEd3d_tslinks.addPOI(
                 siteData.system,
                 siteData.galacticX,
@@ -528,6 +528,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
             y: parseFloat(y),
             z: parseFloat(z),
         };
+
         canonnEd3d_tslinks.systemsData.systems.push(poiSite);
         if (name in canonnEd3d_tslinks.addingSystems) {
             canonnEd3d_tslinks.addingSystems[name].done = true;
