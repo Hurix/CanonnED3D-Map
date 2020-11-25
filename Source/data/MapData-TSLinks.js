@@ -82,34 +82,23 @@ const getSystemsEDSM = async (systemNames) => {
 	return payload;
 };
 
+const recenterViewport = (center, distance) => {
+    //-- Set new camera & target position
+    Ed3d.playerPos = [center.x,center.y,center.z];
+    Ed3d.cameraPos = [
+      center.x + (Math.floor((Math.random() * 100) + 1)-50), //-- Add a small rotation effect
+      center.y + distance,
+      center.z - distance
+    ];
+
+    Action.moveInitalPosition();
+}
 
 var canonnEd3d_tslinks = {
     //Define Categories
     sitesByIDs: {},
 	systemsData: {
 		categories: {
-			'Site Properties': {
-				'200': {
-					name: 'to be specified',
-					color: '333333',
-				},
-				'201': {
-					name: 'Active T-Structure',
-					color: '00FF00',
-				},
-				'202': {
-					name: 'Inactive T-Structure',
-					color: 'FF0000',
-				},
-                '203': {
-                    name: 'Populated System',
-                    color: '0000FF',
-                },
-                '206': {
-                    name: 'Eagle Eye',
-                    color: 'FFFF00',
-                },
-			},
             'Thargoid Links Decoded (Line)': {
                 '10': {
                     name: 'to be specified',
@@ -133,6 +122,28 @@ var canonnEd3d_tslinks = {
                 //2-3 barnacle forests also hand placed (out of usual bio env. parameters)
                 //
             },
+			'Site Properties (Point)': {
+				'200': {
+					name: 'to be specified',
+					color: '333333',
+				},
+				'201': {
+					name: 'Active T-Structure',
+					color: '00FF00',
+				},
+				'202': {
+					name: 'Inactive T-Structure',
+					color: 'FF0000',
+				},
+                '203': {
+                    name: 'Populated System',
+                    color: '0000FF',
+                },
+                '206': {
+                    name: 'Eagle Eye',
+                    color: 'FFFF00',
+                },
+			},
             'Leviathan Category (Point)': {
                 '001': {
                     name: 'No Leviathans',
@@ -590,6 +601,29 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         document.getElementById("loading").style.display = "none";    
 	},
 
+    recenterSearch: function () {
+        var term = $('#search input').val();
+        
+        var foundSystem = {};
+        for (key in canonnEd3d_tslinks.systemsData.systems) {
+            let system = canonnEd3d_tslinks.systemsData.systems[key];
+            if (system.name.indexOf(term) >= 0) {
+                foundSystem = system;
+                break;
+            }
+        }
+        if (!(Object.keys(foundSystem).length === 0)) {
+            recenterViewport(foundSystem.coords, 100);
+            
+//console.log("addtext", "system_hover", systemname, 0, 4, 0, 3, threeObj);
+/* how do we get threeObj? they dont have names. would like to show the mouseover text after search recenter
+            HUD.addText(-1, foundSystem.name,
+                0, 4, 0, 3//, foundSystem.coords, true
+            ); 
+//*/
+        }
+    },
+
 
 	init: function () {
         var tssites = canonnEd3d_tslinks.parseCSVData(
@@ -616,7 +650,12 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
 				playerPos: [-78.59375, -149.625, -340.53125],
 				cameraPos: [-78.59375 - 500, -149.625, -340.53125 - 500],
 				systemColor: '#FF9D00',
-			});
-		});
+            });
+            setTimeout(()=>{
+                $('#search').css('display', 'block');
+                $('#search input').on('input', canonnEd3d_tslinks.recenterSearch);
+            }, 1000);
+        });
+        
 	},
 };
