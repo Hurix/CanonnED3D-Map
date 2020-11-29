@@ -519,7 +519,7 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //*/
         //add the site
         let poiSite = {};
-        poiSite['name'] = name;
+        poiSite['name'] = name.toUpperCase();
         //console.log(category);
         //todo Check Site Type and match categories
         poiSite['cat'] = category;
@@ -574,8 +574,8 @@ https://tool.canonn.tech/linkdecoder/?origin=Taurus+Dark+Region+CL-Y+d53&data=ll
         //todo 
         route['cat'] = category;
         route['points'] = [
-            { 's': originSystem, 'label': originSystem },
-            { 's': tarname, 'label': tarname },
+            { 's': originSystem.toUpperCase(), 'label': originSystem },
+            { 's': tarname.toUpperCase(), 'label': tarname },
         ];
         route['circle'] = false;
 

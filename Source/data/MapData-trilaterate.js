@@ -106,7 +106,7 @@ function union_arrays (x, y) {
     return res;
 }
 
-var canonnEd3d_tslinks = {
+var canonnEd3d_trilaterate = {
     //Define Categories
     sitesByIDs: {},
 	systemsData: {
@@ -134,7 +134,7 @@ var canonnEd3d_tslinks = {
             y: parseFloat(y),
             z: parseFloat(z),
         };
-        canonnEd3d_tslinks.systemsData.systems.push(poiSite);
+        canonnEd3d_trilaterate.systemsData.systems.push(poiSite);
     },
 
     trilaterate: async (data) => {
@@ -183,7 +183,7 @@ var canonnEd3d_tslinks = {
             console.log("EDSM call fail: ", response);
         for (key in response.data) {
             let system = response.data[key];
-            canonnEd3d_tslinks.addPOI(
+            canonnEd3d_trilaterate.addPOI(
                 system.name,
                 system.coords.x,
                 system.coords.y,
@@ -194,7 +194,7 @@ var canonnEd3d_tslinks = {
     },
 
 	init: function () {
-        var tssites = canonnEd3d_tslinks.trilaterate([
+        var tssites = canonnEd3d_trilaterate.trilaterate([
             {
                 name: 'Pleiades Sector ih-v c2-16',
                 distanceMin: '40',
@@ -218,7 +218,7 @@ var canonnEd3d_tslinks = {
             document.getElementById("loading").style.display = "none";  
 			Ed3d.init({
 				container: 'edmap',
-				json: canonnEd3d_tslinks.systemsData,
+				json: canonnEd3d_trilaterate.systemsData,
 				withFullscreenToggle: false,
 				withHudPanel: true,
 				hudMultipleSelect: true,
